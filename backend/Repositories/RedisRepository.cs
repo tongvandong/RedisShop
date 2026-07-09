@@ -49,6 +49,7 @@ public sealed class RedisRepository
         _options = options.Value;
     }
 
+    // Redis command: PING
     public async Task<RedisPingResponse> PingAsync()
     {
         var db = _connectionFactory.GetDatabase();
@@ -63,6 +64,7 @@ public sealed class RedisRepository
         };
     }
 
+    // Redis commands: GET cache:products, INCR metrics:cache:products:hit|miss, TTL cache:products
     public async Task<List<ProductDto>?> GetProductsFromCacheAsync(bool trackMetrics = true)
     {
         if (_connectionFactory.ShouldSkipOptionalRedis())
@@ -116,6 +118,7 @@ public sealed class RedisRepository
         }
     }
 
+    // Redis commands: GET cache:product:{id}, TTL cache:product:{id}, ZINCRBY ranking:product:views 1 {id}
     public async Task<ProductDto?> GetProductFromCacheAsync(long productId)
     {
         if (_connectionFactory.ShouldSkipOptionalRedis())
@@ -151,6 +154,7 @@ public sealed class RedisRepository
         }
     }
 
+    // Redis commands: SET cache:product:{id} <json> EX <ttl>, ZINCRBY ranking:product:views 1 {id}
     public async Task SaveProductCacheAsync(ProductDto product)
     {
         product.Source = "MYSQL";
@@ -177,6 +181,7 @@ public sealed class RedisRepository
         }
     }
 
+    // Redis commands: SET cache:products <json> EX <ttl>, SET metrics:cache:products:* <value>
     public async Task SaveProductsCacheAsync(List<ProductDto> products, long mySqlDurationMs, bool trackMetrics = true)
     {
         foreach (var product in products)
@@ -213,6 +218,7 @@ public sealed class RedisRepository
         }
     }
 
+    // Redis command: SET lock:cache:products:rebuild <token> EX 5 NX
     public async Task<string?> TryAcquireProductsCacheRebuildLockAsync()
     {
         if (_connectionFactory.ShouldSkipOptionalRedis())
@@ -240,6 +246,7 @@ public sealed class RedisRepository
         }
     }
 
+    // Redis command: EVAL Lua compare-token-then-DEL lock:cache:products:rebuild
     public async Task ReleaseProductsCacheRebuildLockAsync(string? token)
     {
         if (string.IsNullOrWhiteSpace(token))
@@ -265,6 +272,7 @@ public sealed class RedisRepository
         }
     }
 
+    // Redis command: SET lock:cache:product:{id}:rebuild <token> EX 5 NX
     public async Task<string?> TryAcquireProductCacheRebuildLockAsync(long productId)
     {
         if (_connectionFactory.ShouldSkipOptionalRedis())
@@ -292,6 +300,7 @@ public sealed class RedisRepository
         }
     }
 
+    // Redis command: EVAL Lua compare-token-then-DEL lock:cache:product:{id}:rebuild
     public async Task ReleaseProductCacheRebuildLockAsync(long productId, string? token)
     {
         if (string.IsNullOrWhiteSpace(token))
@@ -317,6 +326,7 @@ public sealed class RedisRepository
         }
     }
 
+    // Redis command loop: GET cache:product:{id} until another request rebuilds the cache
     public async Task<ProductDto?> WaitForProductCacheAsync(long productId, TimeSpan timeout, TimeSpan interval)
     {
         if (_connectionFactory.ShouldSkipOptionalRedis())
@@ -339,6 +349,7 @@ public sealed class RedisRepository
         return null;
     }
 
+    // Redis command loop: GET cache:products until another request rebuilds the cache
     public async Task<List<ProductDto>?> WaitForProductsCacheAsync(TimeSpan timeout, TimeSpan interval, bool trackMetrics = true)
     {
         if (_connectionFactory.ShouldSkipOptionalRedis())
@@ -361,6 +372,7 @@ public sealed class RedisRepository
         return null;
     }
 
+    // Redis commands: GET cache:products, INCR metrics:cache:products:hit, TTL cache:products
     private async Task<List<ProductDto>?> ReadProductsCacheWithoutMissAsync(bool trackMetrics)
     {
         try
@@ -400,6 +412,7 @@ public sealed class RedisRepository
         }
     }
 
+    // Redis commands: DEL cache:products cache:product:* metrics duration keys, SET metrics:cache:products:last-source CLEARED
     public async Task ClearProductsCacheAsync()
     {
         if (_connectionFactory.ShouldSkipOptionalRedis())
@@ -433,6 +446,7 @@ public sealed class RedisRepository
         }
     }
 
+    // Redis command: DEL cache:product:{id}
     public async Task ClearProductCacheAsync(long productId)
     {
         if (_connectionFactory.ShouldSkipOptionalRedis())
@@ -451,6 +465,7 @@ public sealed class RedisRepository
         }
     }
 
+    // Redis commands: HSET session:{id} userId username role createdAt, EXPIRE session:{id} <ttl>
     public async Task<string> CreateSessionAsync(LoginResponse user)
     {
         var db = _connectionFactory.GetDatabase();
@@ -471,6 +486,7 @@ public sealed class RedisRepository
         return sessionKey;
     }
 
+    // Redis commands: HGETALL session:{id}, TTL session:{id}
     public async Task<SessionUserDto?> GetSessionAsync(string sessionId)
     {
         if (string.IsNullOrWhiteSpace(sessionId) || !sessionId.StartsWith("session:", StringComparison.OrdinalIgnoreCase))
@@ -499,6 +515,7 @@ public sealed class RedisRepository
         };
     }
 
+    // Redis command: DEL session:{id}
     public async Task DeleteSessionAsync(string sessionId)
     {
         if (string.IsNullOrWhiteSpace(sessionId))
@@ -509,6 +526,7 @@ public sealed class RedisRepository
         await _connectionFactory.GetDatabase().KeyDeleteAsync(sessionId);
     }
 
+    // Redis commands: HGETALL cart:{userId}, TTL cart:{userId}
     public async Task<List<CartItemDto>> GetCartAsync(long userId)
     {
         var db = _connectionFactory.GetDatabase();
@@ -525,6 +543,7 @@ public sealed class RedisRepository
             .ToList();
     }
 
+    // Redis commands: HSET cart:{userId} {productId} {quantity}, HDEL cart:{userId} {productId}, EXPIRE cart:{userId} <ttl>
     public async Task<List<CartItemDto>> SaveCartItemAsync(long userId, SaveCartItemRequest request)
     {
         var db = _connectionFactory.GetDatabase();
@@ -543,11 +562,13 @@ public sealed class RedisRepository
         return await GetCartAsync(userId);
     }
 
+    // Redis command: DEL cart:{userId}
     public async Task ClearCartAsync(long userId)
     {
         await _connectionFactory.GetDatabase().KeyDeleteAsync(GetCartKey(userId));
     }
 
+    // Redis commands: INCR rate:login:ip:{ip}:user:{username}, EXPIRE rate:login:ip:{ip}:user:{username} <window>, TTL ...
     public async Task<RateLimitResult> CheckRateLimitAsync(string name)
     {
         var db = _connectionFactory.GetDatabase();
@@ -569,6 +590,7 @@ public sealed class RedisRepository
         };
     }
 
+    // Redis command: EVAL Lua SADD ranking:processed-orders {orderId} + ZINCRBY ranking:products {quantity} {productId}
     public async Task<bool> IncrementProductRankingForOrderAsync(long orderId, IEnumerable<CreateOrderItemRequest> items)
     {
         var itemList = items.Where(item => item.ProductId > 0 && item.Quantity > 0).ToList();
@@ -606,6 +628,7 @@ public sealed class RedisRepository
         return (int)result == 1;
     }
 
+    // Redis command: ZREVRANGE ranking:products 0 <take-1> WITHSCORES
     public async Task<List<RankingItemDto>> GetRankingAsync(List<ProductDto> products, int take = 5)
     {
         var db = _connectionFactory.GetDatabase();
@@ -628,6 +651,7 @@ public sealed class RedisRepository
         }).ToList();
     }
 
+    // Redis command: ZREVRANGE ranking:product:views 0 <take-1> WITHSCORES
     public async Task<List<RankingItemDto>> GetProductViewRankingAsync(List<ProductDto> products, int take = 5)
     {
         var db = _connectionFactory.GetCacheDatabase();
@@ -650,6 +674,7 @@ public sealed class RedisRepository
         }).ToList();
     }
 
+    // Redis command: XADD stream:orders * orderId <id> orderCode <code> status <status> totalAmount <amount>
     public async Task<string> AddOrderStreamMessageAsync(OrderCreatedResponse order)
     {
         var db = _connectionFactory.GetDatabase();
@@ -665,6 +690,7 @@ public sealed class RedisRepository
         return id!;
     }
 
+    // Redis command: XREVRANGE stream:orders + - COUNT <take>
     public async Task<List<StreamMessageDto>> GetOrderStreamMessagesAsync(int take = 20)
     {
         var db = _connectionFactory.GetDatabase();
@@ -692,6 +718,7 @@ public sealed class RedisRepository
         return streamMessages;
     }
 
+    // Redis command: XGROUP CREATE stream:orders order-workers 0 MKSTREAM
     public async Task EnsureOrderConsumerGroupAsync()
     {
         var db = _connectionFactory.GetDatabase();
@@ -710,6 +737,7 @@ public sealed class RedisRepository
         }
     }
 
+    // Redis command: XREADGROUP GROUP order-workers {consumerName} COUNT <count> STREAMS stream:orders >
     public async Task<StreamEntry[]> ReadOrderStreamAsync(string consumerName, int count = 5)
     {
         var db = _connectionFactory.GetDatabase();
@@ -721,6 +749,7 @@ public sealed class RedisRepository
             count);
     }
 
+    // Redis commands: XPENDING stream:orders order-workers, XCLAIM stream:orders order-workers {consumerName} <min-idle-ms> <messageId>
     public async Task<StreamEntry[]> ClaimStaleOrderStreamMessagesAsync(
         string consumerName,
         long minIdleMilliseconds = 30000,
@@ -753,6 +782,7 @@ public sealed class RedisRepository
             staleMessageIds);
     }
 
+    // Redis command: XACK stream:orders order-workers <messageId>
     public async Task AckOrderStreamAsync(RedisValue messageId)
     {
         var db = _connectionFactory.GetDatabase();
@@ -765,6 +795,7 @@ public sealed class RedisRepository
         return long.TryParse(orderId, out var value) ? value : 0;
     }
 
+    // Redis command: PUBLISH notifications <message>
     public async Task<long> PublishAsync(PublishMessageRequest request)
     {
         var subscriber = _connectionFactory.GetSubscriber();
@@ -778,6 +809,7 @@ public sealed class RedisRepository
         return await subscriber.PublishAsync(RedisChannel.Literal(channel), message);
     }
 
+    // Redis commands: INFO, DBSIZE, SCAN session:* cart:* rate:* , XLEN stream:orders
     public async Task<RedisOverviewResponse> GetOverviewAsync()
     {
         var db = _connectionFactory.GetDatabase();
@@ -800,6 +832,7 @@ public sealed class RedisRepository
         };
     }
 
+    // Redis commands: SCAN/HGETALL/TTL for session:* cart:* rate:* plus XPENDING/XINFO for stream:orders
     public async Task<RedisDashboardDetailsResponse> GetDashboardDetailsAsync()
     {
         var db = _connectionFactory.GetDatabase();
@@ -814,6 +847,7 @@ public sealed class RedisRepository
         };
     }
 
+    // Redis commands: SENTINEL get-master-addr-by-name, INFO, CONFIG GET maxmemory-policy|maxmemory|appendonly|save
     public async Task<RedisInfrastructureResponse> GetInfrastructureAsync()
     {
         var server = _connectionFactory.GetServer();
@@ -848,6 +882,7 @@ public sealed class RedisRepository
         };
     }
 
+    // Redis commands per node: INFO replication/server/persistence/memory and CONFIG GET maxmemory-policy|maxmemory
     private async Task<List<RedisNodeStatusDto>> BuildNodeStatusesAsync(string currentMaster)
     {
         var nodes = _options.Sentinel.Endpoints.Count > 0
@@ -870,6 +905,7 @@ public sealed class RedisRepository
         return result;
     }
 
+    // Redis commands: INFO against a direct Redis node endpoint, CONFIG GET maxmemory-policy|maxmemory
     private async Task<RedisNodeStatusDto> ReadNodeStatusAsync(string name, string redisEndpoint, string sentinelEndpoint, string currentMaster)
     {
         try
@@ -945,6 +981,7 @@ public sealed class RedisRepository
         }
     }
 
+    // Redis commands on 6381: SET, HSET, ZADD, XADD, BGSAVE, then EXISTS/TYPE/TTL to verify
     public async Task<RedisPersistenceTestResponse> PreparePersistenceTestAsync()
     {
         var db = _connectionFactory.GetPersistenceDatabase();
@@ -988,6 +1025,7 @@ public sealed class RedisRepository
             "Da tao 5 key test tren Redis 6381. Hay chay tren Ubuntu: sudo systemctl restart redis-persistence-6381, sau do quay lai bam Kiem tra sau restart.");
     }
 
+    // Redis commands on 6381: DBSIZE, EXISTS, TYPE, TTL, GET/HGETALL/ZRANGE/XRANGE for persistence test keys
     public async Task<RedisPersistenceTestResponse> CheckPersistenceTestAsync()
     {
         return await BuildPersistenceTestResponseAsync(
@@ -995,12 +1033,14 @@ public sealed class RedisRepository
             "PASS neu ca 5 key test van ton tai sau khi restart Redis.");
     }
 
+    // Redis command on 6381: DEL persistence:test:cache session cart ranking stream
     public async Task ClearPersistenceTestAsync()
     {
         var db = _connectionFactory.GetPersistenceDatabase();
         await db.KeyDeleteAsync(PersistenceTestKeys);
     }
 
+    // Redis commands on 6380: GET metrics:cache:products:*, TTL cache:products
     private async Task<CacheMonitorDto> GetCacheMonitorAsync()
     {
         var db = _connectionFactory.GetCacheDatabase();
@@ -1022,6 +1062,7 @@ public sealed class RedisRepository
         };
     }
 
+    // Redis commands on 6381: DBSIZE, EXISTS, TYPE, TTL and value preview commands per key type
     private async Task<RedisPersistenceTestResponse> BuildPersistenceTestResponseAsync(string status, string instruction)
     {
         var db = _connectionFactory.GetPersistenceDatabase();
@@ -1090,6 +1131,7 @@ public sealed class RedisRepository
         }
     }
 
+    // Redis commands: SCAN session:*, HGETALL session:{id}, TTL session:{id}
     private async Task<List<SessionMonitorDto>> GetSessionMonitorsAsync(IDatabase db, IServer server)
     {
         var sessions = new List<SessionMonitorDto>();
@@ -1113,6 +1155,7 @@ public sealed class RedisRepository
         return sessions.OrderBy(item => item.Username).ToList();
     }
 
+    // Redis commands: SCAN cart:*, HGETALL cart:{userId}, TTL cart:{userId}
     private async Task<List<CartMonitorDto>> GetCartMonitorsAsync(IDatabase db, IServer server)
     {
         var carts = new List<CartMonitorDto>();
@@ -1156,6 +1199,7 @@ public sealed class RedisRepository
         return carts.OrderBy(item => item.UserId).ToList();
     }
 
+    // Redis commands: SCAN rate:*, GET rate:{...}, TTL rate:{...}
     private async Task<List<RateLimitMonitorDto>> GetRateLimitMonitorsAsync(IDatabase db, IServer server)
     {
         var rates = new List<RateLimitMonitorDto>();
@@ -1179,6 +1223,7 @@ public sealed class RedisRepository
         return rates.OrderByDescending(item => item.Count).ToList();
     }
 
+    // Redis commands: XLEN stream:orders, XPENDING stream:orders order-workers, XINFO GROUPS stream:orders
     private async Task<StreamMonitorDto> GetStreamMonitorAsync(IDatabase db)
     {
         var pendingResult = await ExecuteRedisResultAsync(db, "XPENDING", OrdersStreamKey, OrdersConsumerGroup);
