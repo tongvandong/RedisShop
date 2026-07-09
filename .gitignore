@@ -16,6 +16,7 @@ build-check*/
 # Local/editor files
 .vs/
 .vscode/
+.history/
 *.user
 *.suo
 
