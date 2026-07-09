@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Frontend build outputs
+dist/
+
+# .NET build outputs
+bin/
+obj/
+build-check*/
+
+# Runtime logs
+*.log
+*.err.log
+
+# Local/editor files
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Temporary extraction/debug files
+_demo_script_extract.txt
+
+# Environment files
+.env
+.env.*
+!.env.example
